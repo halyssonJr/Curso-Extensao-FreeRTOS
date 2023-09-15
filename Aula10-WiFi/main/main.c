@@ -1,6 +1,7 @@
 #include <stdio.h> 
 #include <string.h>
-#include "freertos/FreeRTOS.h" 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h" 
 #include "esp_system.h" 
 #include "esp_wifi.h" 
 #include "esp_log.h" 
@@ -9,10 +10,15 @@
 #include "lwip/err.h" 
 #include "lwip/sys.h" 
 
+#include "dht.h"
+
+
 #define TAG "AULA 10"
 #define RETRY_NUM 5
 #define SSID "Sua Rede"
 #define PASSWORD "Sua senha"
+
+#define DHT_PIN 23
 
 int retry_num = 0;
 
@@ -40,7 +46,7 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
             ESP_LOGI(TAG, "Reconectando ...");
         }
     }
-
+    
     else if (event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
@@ -80,6 +86,7 @@ void wifi_connection()
             .password = PASSWORD,
         },
     };
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 	esp_wifi_set_storage(WIFI_STORAGE_RAM);
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
@@ -89,8 +96,29 @@ void wifi_connection()
     
 }
 
+void dht_task (void *args)
+{
+    float temp = 0;
+    float hum = 0;
+
+    while(1)
+    {
+        if (dht_read_float_data(DHT_TYPE_AM2301,DHT_PIN,&hum, &temp ) == ESP_OK)
+        {
+            ESP_LOGI(TAG, "Temp %.2f C| Umidade %2.f %%", temp, hum);
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Não foi possível fazer leitura");
+        }
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
 void app_main(void)
 {
     nvs_flash_init();
-    wifi_connection();
+
+    // wifi_connection();
+    xTaskCreate (dht_task, "DHT", 1023*4, NULL, 2 , NULL);
+
 }
